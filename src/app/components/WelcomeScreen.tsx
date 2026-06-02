@@ -237,6 +237,18 @@ function IconBag() {
   );
 }
 
+function IconSeat() {
+  return (
+    <div className="relative shrink-0 size-[20px]" data-name="IconSeat">
+      <svg className="absolute block inset-0 size-full" fill="none" viewBox="0 0 20 20">
+        <path d="M6.25 3.75h7.5c.69 0 1.25.56 1.25 1.25v5.625H5V5c0-.69.56-1.25 1.25-1.25Z" stroke="#646363" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.25" />
+        <path d="M4.375 10.625h11.25c.69 0 1.25.56 1.25 1.25v1.875c0 .69-.56 1.25-1.25 1.25H4.375c-.69 0-1.25-.56-1.25-1.25v-1.875c0-.69.56-1.25 1.25-1.25Z" stroke="#646363" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.25" />
+        <path d="M5 15v1.25M15 15v1.25M7.5 6.875h5" stroke="#646363" strokeLinecap="round" strokeWidth="1.25" />
+      </svg>
+    </div>
+  );
+}
+
 function IconPlusLarge() {
   return (
     <div className="relative shrink-0 size-[16px]" data-name="IconPlusLarge">
@@ -280,6 +292,7 @@ export default function WelcomeScreen({ isWideLayout = false, onSidebarToggle, o
   const suggestions = [
     { icon: <IconAirplane />, text: "Help me find and book the best flight for my trip" },
     { icon: <IconTimeslot />, text: "Check the current status of my flight" },
+    { icon: <IconSeat />, text: "Help me choose seats for my booking" },
     { icon: <IconParasol />, text: "Help me discover new places" },
     { icon: <IconBag />, text: "What baggage can I bring on my trip?" }
   ];
@@ -392,7 +405,7 @@ export default function WelcomeScreen({ isWideLayout = false, onSidebarToggle, o
                             type="text"
                             value={inputText}
                             onChange={(e) => setInputText(e.target.value)}
-                            onKeyPress={handleKeyPress}
+                            onKeyDown={handleKeyPress}
                             placeholder="How can I help you today?"
                             className="[word-break:break-word] flex-[1_0_0] font-['Etihad_Altis:Text',sans-serif] leading-[1.5] min-w-px not-italic relative text-[#1d1c1b] text-[15px] bg-transparent border-none outline-none placeholder:text-[#646363] w-full"
                           />

@@ -16,9 +16,11 @@ import discoverHotelDeltinCard from "../../assets/discover-hotel-deltin-card.png
 import discoverHotelPartialCard from "../../assets/discover-hotel-partial-card.png";
 import discoverRestaurantsCard from "../../assets/discover-restaurants-card.png";
 import PushToTalkButton from "./PushToTalkButton";
+import SeatSelectionFlow, { type SeatFlowAction, type SeatFlowActionIconName } from "./seat-selection/SeatSelectionFlow";
+import { CreditCard, ExternalLink, Map, RefreshCw, ShieldCheck, SquareCheck } from "lucide-react";
 
 interface ConversationScreenProps {
-  conversation: Array<{ type: 'user' | 'assistant', content: string; imageUrl?: string }>;
+  conversation: Array<{ type: 'user' | 'assistant', content: string; imageUrl?: string; kind?: 'seat-selection' }>;
   isWideLayout?: boolean;
   onDateSelect: (date: string) => void;
   onShareLocation: () => void;
@@ -29,6 +31,57 @@ interface ConversationScreenProps {
 }
 
 type SourceView = 'none' | 'posts' | 'web';
+
+function SeatFlowActionIcon({ icon }: { icon?: SeatFlowActionIconName }) {
+  if (icon === 'map') {
+    return <Map className="size-[18px]" />;
+  }
+  if (icon === 'review') {
+    return <SquareCheck className="size-[18px]" />;
+  }
+  if (icon === 'payment') {
+    return <CreditCard className="size-[18px]" />;
+  }
+  if (icon === 'change') {
+    return <RefreshCw className="size-[18px]" />;
+  }
+  if (icon === 'verify') {
+    return <ExternalLink className="size-[18px]" />;
+  }
+  if (icon === 'confirm') {
+    return <ShieldCheck className="size-[18px]" />;
+  }
+  return null;
+}
+
+function SeatFlowActionBar({ actions }: { actions: SeatFlowAction[] }) {
+  return (
+    <div className="seat-flow-action-bar flex flex-col gap-[8px] w-full">
+      {actions.map((action) => {
+        if (action.kind === 'custom') {
+          return (
+            <div className="w-full" key={action.id}>
+              {action.content}
+            </div>
+          );
+        }
+
+        return (
+          <button
+            className={`${action.variant === 'primary' ? 'bg-[#1d1c1b] text-white hover:bg-[#3d3c3b]' : 'bg-[#f3f2ef] text-[#1d1c1b] hover:bg-[#e8e6e1]'} disabled:bg-[#b8b6b3] disabled:text-white disabled:cursor-not-allowed flex items-center justify-center gap-[8px] min-h-[48px] px-[16px] py-[12px] rounded-[999px] transition-colors w-full font-['Etihad_Altis:Bold',sans-serif] text-[15px]`}
+            disabled={action.disabled}
+            key={action.label}
+            onClick={action.onClick}
+            type="button"
+          >
+            <SeatFlowActionIcon icon={action.icon} />
+            {action.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function IconEditBig() {
   return (
@@ -744,6 +797,8 @@ export default function ConversationScreen({ conversation, isWideLayout = false,
   const [inputText, setInputText] = React.useState('');
   const [selectedImage, setSelectedImage] = React.useState<string | undefined>();
   const [sourceView, setSourceView] = React.useState<SourceView>('none');
+  const [seatFlowActions, setSeatFlowActions] = React.useState<SeatFlowAction[] | null>(null);
+  const [seatFlowLatestText, setSeatFlowLatestText] = React.useState('');
   const messagesRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -754,6 +809,8 @@ export default function ConversationScreen({ conversation, isWideLayout = false,
   const hasSelectedDate = conversation.some(msg => msg.type === 'user' && msg.content.includes('April'));
   const hasSharedLocation = conversation.some(msg => msg.type === 'user' && msg.content.includes('EC3N'));
   const hasDiscoverResponse = conversation.some(msg => msg.type === 'assistant' && msg.content.includes('best trips are the ones'));
+  const hasSeatSelectionFlow = conversation.some((msg) => msg.kind === 'seat-selection');
+  const latestUserText = seatFlowLatestText || [...conversation].reverse().find((msg) => msg.type === 'user')?.content || '';
   const dates = ["Sunday, 19 April", "Monday, 20 April", "Tuesday, 21 April"];
 
   React.useEffect(() => {
@@ -762,9 +819,27 @@ export default function ConversationScreen({ conversation, isWideLayout = false,
     }
   }, [hasDiscoverResponse]);
 
+  React.useEffect(() => {
+    if (!conversation.some((msg) => msg.kind === 'seat-selection')) {
+      setSeatFlowActions(null);
+      setSeatFlowLatestText('');
+    }
+  }, [conversation]);
+
   const handleSubmit = () => {
-    if (inputText.trim()) {
-      onInputSubmit(inputText, selectedImage);
+    const trimmedInput = inputText.trim();
+    const looksLikeSeatBookingDetails = /\b(?=[A-Z0-9]{6}\b)(?=[A-Z0-9]*\d)[A-Z0-9]{6}\b/i.test(trimmedInput)
+      || trimmedInput.toLowerCase().includes('haddad');
+
+    if (trimmedInput) {
+      if (hasSeatSelectionFlow && looksLikeSeatBookingDetails && !selectedImage) {
+        setSeatFlowLatestText(trimmedInput);
+        setInputText('');
+        setTimeout(() => inputRef.current?.focus(), 100);
+        return;
+      }
+
+      onInputSubmit(trimmedInput, selectedImage);
       setInputText('');
       setSelectedImage(undefined);
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -826,6 +901,7 @@ export default function ConversationScreen({ conversation, isWideLayout = false,
                 const isBaggageResponse = msg.type === 'assistant' && msg.content.includes('baggage options');
                 const isDestinationResponse = msg.type === 'assistant' && msg.content.includes('destinations are trending');
                 const isDiscoverPlacesResponse = msg.type === 'assistant' && msg.content.includes('best trips are the ones');
+                const isSeatSelectionResponse = msg.type === 'assistant' && msg.kind === 'seat-selection';
                 const shouldShowLocationOption = msg.type === 'assistant' && msg.content.includes('share your location') && !hasSharedLocation;
                 const shouldShowDateOptions = hasFlightStatusQuery && !hasSelectedDate && idx === 1;
                 const shouldShowActions = msg.type === 'assistant' && !shouldShowDateOptions;
@@ -846,7 +922,16 @@ export default function ConversationScreen({ conversation, isWideLayout = false,
                           <Frame />
                         </div>
 
-                          {isFlightStatusResponse ? (
+                          {isSeatSelectionResponse ? (
+                          <>
+                            <SeatSelectionFlow
+                              animate={isLatestMessage}
+                              latestUserText={latestUserText}
+                              onActionBarChange={setSeatFlowActions}
+                              onSuggestionClick={(suggestion) => onInputSubmit(suggestion)}
+                            />
+                          </>
+                        ) : isFlightStatusResponse ? (
                           <FlightStatusResponse animate={isLatestMessage} />
                         ) : isBaggageResponse ? (
                           <BaggageResponse animate={isLatestMessage} />
@@ -908,64 +993,71 @@ export default function ConversationScreen({ conversation, isWideLayout = false,
             </div>
 
             <div className="content-stretch flex flex-col items-center relative shrink-0 w-full">
-              <div className="bg-white drop-shadow-[0px_4px_4px_rgba(0,0,0,0.05)] relative rounded-[24px] shrink-0 w-full">
-                <div aria-hidden="true" className="absolute border border-[#e8e8e8] border-solid inset-0 pointer-events-none rounded-[24px]" />
-                <div className="flex flex-col justify-center size-full">
-                  <div className="content-stretch flex flex-col gap-[18px] items-start justify-center pb-[8px] pt-[20px] px-[8px] relative size-full">
-                    {selectedImage && (
-                      <div className="content-stretch flex items-center px-[12px] relative shrink-0 w-full">
-                        <img src={selectedImage} alt="" className="h-[52px] w-[52px] rounded-[12px] object-cover" />
-                      </div>
-                    )}
+              {seatFlowActions?.length ? (
+                <SeatFlowActionBar
+                  key={seatFlowActions.map((action) => action.kind === 'custom' ? action.id : action.label).join('|')}
+                  actions={seatFlowActions}
+                />
+              ) : (
+                <div className="bg-white drop-shadow-[0px_4px_4px_rgba(0,0,0,0.05)] relative rounded-[24px] shrink-0 w-full">
+                  <div aria-hidden="true" className="absolute border border-[#e8e8e8] border-solid inset-0 pointer-events-none rounded-[24px]" />
+                  <div className="flex flex-col justify-center size-full">
+                    <div className="content-stretch flex flex-col gap-[18px] items-start justify-center pb-[8px] pt-[20px] px-[8px] relative size-full">
+                      {selectedImage && (
+                        <div className="content-stretch flex items-center px-[12px] relative shrink-0 w-full">
+                          <img src={selectedImage} alt="" className="h-[52px] w-[52px] rounded-[12px] object-cover" />
+                        </div>
+                      )}
 
-                    <div className="relative shrink-0 w-full">
-                      <div className="flex flex-row items-center justify-center size-full">
-                        <div className="content-stretch flex items-center justify-center px-[12px] relative size-full">
-                          <input
-                            ref={inputRef}
-                            type="text"
-                            value={inputText}
-                            onChange={(e) => setInputText(e.target.value)}
-                            onKeyPress={handleKeyPress}
-                            placeholder="How can I help you today?"
-                            className="[word-break:break-word] flex-[1_0_0] font-['Etihad_Altis:Text',sans-serif] leading-[1.5] min-w-px not-italic relative text-[#1d1c1b] text-[15px] bg-transparent border-none outline-none placeholder:text-[#646363]"
-                          />
+                      <div className="relative shrink-0 w-full">
+                        <div className="flex flex-row items-center justify-center size-full">
+                          <div className="content-stretch flex items-center justify-center px-[12px] relative size-full">
+                            <input
+                              ref={inputRef}
+                              type="text"
+                              value={inputText}
+                              onChange={(e) => setInputText(e.target.value)}
+                              onKeyDown={handleKeyPress}
+                              placeholder="How can I help you today?"
+                              className="[word-break:break-word] flex-[1_0_0] font-['Etihad_Altis:Text',sans-serif] leading-[1.5] min-w-px not-italic relative text-[#1d1c1b] text-[15px] bg-transparent border-none outline-none placeholder:text-[#646363]"
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="content-stretch flex items-center justify-between relative shrink-0 w-full">
-                      <input ref={fileInputRef} className="hidden" type="file" accept="image/*" onChange={handleImageSelect} />
-                      <button
-                        className="bg-[#ebebea] content-stretch flex items-center justify-center p-[10px] relative rounded-[99px] shrink-0 size-[40px] cursor-pointer hover:bg-[#dddcdc] transition-colors"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        <IconPlusLarge />
-                      </button>
+                      <div className="content-stretch flex items-center justify-between relative shrink-0 w-full">
+                        <input ref={fileInputRef} className="hidden" type="file" accept="image/*" onChange={handleImageSelect} />
+                        <button
+                          className="bg-[#ebebea] content-stretch flex items-center justify-center p-[10px] relative rounded-[99px] shrink-0 size-[40px] cursor-pointer hover:bg-[#dddcdc] transition-colors"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          <IconPlusLarge />
+                        </button>
 
-                      <div className="content-stretch flex items-center relative shrink-0">
-                        <div className="content-stretch flex gap-[8px] items-center relative shrink-0">
-                          <PushToTalkButton onSubmit={handlePushToTalkSubmit}>
-                            <IconMicrophone />
-                          </PushToTalkButton>
-                          <button
-                            className="bg-[#1d1c1b] content-stretch flex items-center justify-center p-[10px] relative rounded-[99px] shrink-0 size-[40px] cursor-pointer hover:bg-[#3d3c3b] transition-colors"
-                            onClick={inputText.trim() ? handleSubmit : onFullVoice}
-                          >
-                            {inputText.trim() ? (
-                              <svg className="relative shrink-0 size-[16px]" fill="none" viewBox="0 0 16 16">
-                                <path d="M8 13V3M8 3L4 7M8 3L12 7" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                            ) : (
-                              <IconVoiceHigh />
-                            )}
-                          </button>
+                        <div className="content-stretch flex items-center relative shrink-0">
+                          <div className="content-stretch flex gap-[8px] items-center relative shrink-0">
+                            <PushToTalkButton onSubmit={handlePushToTalkSubmit}>
+                              <IconMicrophone />
+                            </PushToTalkButton>
+                            <button
+                              className="bg-[#1d1c1b] content-stretch flex items-center justify-center p-[10px] relative rounded-[99px] shrink-0 size-[40px] cursor-pointer hover:bg-[#3d3c3b] transition-colors"
+                              onClick={inputText.trim() ? handleSubmit : onFullVoice}
+                            >
+                              {inputText.trim() ? (
+                                <svg className="relative shrink-0 size-[16px]" fill="none" viewBox="0 0 16 16">
+                                  <path d="M8 13V3M8 3L4 7M8 3L12 7" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              ) : (
+                                <IconVoiceHigh />
+                              )}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
           </div>

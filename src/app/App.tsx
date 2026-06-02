@@ -16,7 +16,7 @@ import menuSettingsIcon from '../assets/menu-settings.svg';
 
 type AppState = 'welcome' | 'thinking' | 'conversation' | 'input';
 type FullVoicePhase = 'preopen' | 'open' | 'closing';
-type Message = { type: 'user' | 'assistant'; content: string; imageUrl?: string };
+type Message = { type: 'user' | 'assistant'; content: string; imageUrl?: string; kind?: 'seat-selection' };
 
 export default function App() {
   const [state, setState] = useState<AppState>('welcome');
@@ -40,6 +40,27 @@ export default function App() {
   };
 
   const baggageResponse = 'You can bring these baggage options on your trip:';
+  const seatSelectionPrompt = 'Happy to help you choose your seats. Please send your booking reference and last name in the message box below, for example: 6X8KQ2 Haddad.';
+
+  const isSeatSelectionIntent = (text: string) => {
+    const lowerText = text.toLowerCase();
+    return lowerText.includes('seat') && (
+      lowerText.includes('select')
+      || lowerText.includes('choose')
+      || lowerText.includes('pick')
+      || lowerText.includes('reserve')
+    );
+  };
+
+  const isSeatBookingDetails = (text: string) => {
+    const hasPnr = /\b(?=[A-Z0-9]{6}\b)(?=[A-Z0-9]*\d)[A-Z0-9]{6}\b/i.test(text);
+    const hasLastName = text.toLowerCase().includes('haddad');
+    return hasPnr && hasLastName;
+  };
+
+  const isPossibleSeatBookingReply = (text: string) => {
+    return /\b(?=[A-Z0-9]{6}\b)(?=[A-Z0-9]*\d)[A-Z0-9]{6}\b/i.test(text) || text.toLowerCase().includes('haddad');
+  };
 
   const handleSuggestionClick = (suggestion: string, imageUrl?: string) => {
     const lowerSuggestion = suggestion.toLowerCase();
@@ -56,6 +77,12 @@ export default function App() {
         setConversation(prev => [...prev, {
           type: 'assistant',
           content: 'Perfect! Flight EY63 flies from Abu Dhabi to London. Which date in April are you looking for?'
+        }]);
+      } else if (isSeatSelectionIntent(suggestion)) {
+        setConversation(prev => [...prev, {
+          type: 'assistant',
+          content: seatSelectionPrompt,
+          kind: 'seat-selection'
         }]);
       } else if (lowerSuggestion.includes('baggage') && imageUrl) {
         setConversation(prev => [...prev, {
@@ -113,6 +140,7 @@ export default function App() {
 
   const handleInputSubmit = (text: string, imageUrl?: string) => {
     const shouldShowDeepThinking = conversation.length === 0 || Boolean(imageUrl);
+    const isWaitingForSeatBookingDetails = conversation.some((msg) => msg.kind === 'seat-selection');
 
     setConversation(prev => [...prev, { type: 'user', content: text, imageUrl }]);
     setState(shouldShowDeepThinking ? 'thinking' : 'conversation');
@@ -123,7 +151,18 @@ export default function App() {
       let response = '';
       const lowerText = text.toLowerCase();
 
-      if (lowerText.includes('flight') && (lowerText.includes('status') || lowerText.includes('check'))) {
+      if (isWaitingForSeatBookingDetails && (isSeatBookingDetails(text) || isPossibleSeatBookingReply(text))) {
+        setState('conversation');
+        return;
+      } else if (isSeatSelectionIntent(text)) {
+        setConversation(prev => [...prev, {
+          type: 'assistant',
+          content: seatSelectionPrompt,
+          kind: 'seat-selection'
+        }]);
+        setState('conversation');
+        return;
+      } else if (lowerText.includes('flight') && (lowerText.includes('status') || lowerText.includes('check'))) {
         response = 'I can help you check your flight status. Please provide your flight number or booking reference.';
       } else if (lowerText.includes('book') || lowerText.includes('booking')) {
         response = 'I\'d be happy to help you with your booking. Where would you like to fly from and to? And what are your preferred travel dates?';
